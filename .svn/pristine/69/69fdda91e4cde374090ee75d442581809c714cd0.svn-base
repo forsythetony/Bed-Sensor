@@ -1,0 +1,196 @@
+/*
+ * main.h
+ *
+ * Created: 7/24/2012 1:27:23 AM
+ *  Author: Administrator
+ */
+
+
+#ifndef MAIN_H_
+#define MAIN_H_
+
+#include <compiler.h>
+#include <calendar.h>
+
+#define LOGGING_THRESHOLD 4096
+#define RF_PACKET_SIZE 70
+#define MAX_CHUNK_RESENDS 5
+#define CHUNK_SIZE	70
+#define MAX_LOG_DIR_LEN	20
+#define MAX_FNAME_LEN	64-MAX_LOG_DIR_LEN
+
+struct
+{
+	uint8_t state;
+	uint8_t error;
+	uint8_t quit;
+
+	struct  
+	{
+		uint8_t valid;
+		uint32_t glb_sec;
+		uint32_t glb_msec;
+		struct calendar_date validated;		
+		struct calendar_date curr;
+		struct calendar_date last;
+	}clk;
+	struct 
+	{
+		uint8_t sub;
+		uint8_t error;
+		uint8_t conn;
+		uint64_t tx_cnt;
+		uint64_t rx_cnt;
+	}com;
+	struct  
+	{
+		uint8_t smpl_enable;
+		uint8_t sub;
+		uint8_t error;
+		uint32_t cntr;
+		uint32_t cntr_tot;
+		uint8_t on_bed;
+		uint8_t ob_state;
+		uint8_t lst_state;
+		uint8_t ob_trig;
+		uint8_t ob_enb;
+		uint16_t lvl_avg;
+	}log;
+	struct  
+	{
+		uint8_t sub;
+		uint32_t secs;
+		uint32_t fsize;
+		uint32_t npkts;
+		uint32_t nchunks;
+		uint32_t rmdpkts;
+		uint32_t rmdbytes;
+		uint32_t bleft;
+		uint32_t curr_chunk;
+		uint32_t curr_pkt;
+		uint32_t rsnd_cnt;
+		uint8_t chunk[RF_PACKET_SIZE*CHUNK_SIZE];
+		uint32_t chksum;
+	}tfr;
+}sys;
+
+#define BED_DISABLED 0
+#define OFF_BED 1
+#define ON_BED  2
+
+#define CMD_START_TFR		0x3C
+// [1]	Start Transfer Command (0x3c)
+// [4]	File Size (Bytes)
+// [1]	Max RF Payload Size (Bytes)
+// [1]	Chunk Size
+// [1]	File name Size
+// [1-64]	File name (ASCII)
+ 
+#define CMD_START_TFR_RSP	0x18
+// [1]	Start Transfer Response Command (0x3c)
+// [1]	Response
+	#define OK_TO_TFR			0x01
+	#define TFR_NOT_ALLOWED		0x00
+		
+#define CMD_DATA_PKT		0x5A
+// [1]	Data Packet Command
+// [1]	Packet Number (relative to current chunk)
+// [1-70]	Payload
+#define CMD_CHUNK_RESP	0x5E
+	// [1]	Chunk Response Command
+	// [1]	Retransfer size (0 means Success
+	#define CHUNK_SUCCESS 0x00
+//[0-CSize] Packets to retransfer
+
+#define CMD_END_TFR	0xF0
+	// [1] End Transfer Command (0xF0)
+	// [1] Exit Code
+		#define END_TFR_ERR		0x00
+		#define END_TFR_FIN		0x01
+		#define END_TFR_CANCEL	0x02
+	// [1] Check Sum
+
+#define CMD_END_TFR_RESP 0x4B
+	// [1] End Transfer Response Command (0x4B)
+	// [1] Exit Code
+		#define END_TFR_RESP_ERR		0x00
+		#define END_TFR_RESP_SUCCESS	0x01
+		#define END_TFR_RESP_CANCEL		0x02
+		#define END_TFR_INV_CHKSUM		0x03
+
+#define CMD_QUERY_LGR 0x96
+	// [1] Query Logger Command (0x96)
+	
+#define CMD_QUERY_LGR_RESP 0x69
+// [1] Query Logger Command (0x69)
+// [1] Year-of-Century (0-99)
+// [1] Month (1-12)
+// [1] Day (1-31)
+// [1] Hour (0-23)
+// [1] Min (0-59)
+// [1] Sec (0-59)
+// [4] User/Network ID
+// [1] Sensor ID
+	
+
+// System States
+#define INIT		0
+#define IDLE		1
+#define ACTIVE		2
+#define CONNECT		3
+#define LOGGING		4
+#define TRANSFER	5
+#define ERROR		6
+
+#define F1 0
+#define F2 2
+#define F3 4
+#define F4 6
+#define R1 1
+#define R2 3
+#define R3 5
+#define R4 7
+
+extern uint8_t log_data;
+
+#define _d(_ch,_i)	(data[log_data][(_ch)][(_i)])
+
+#define FROM_START 0
+#define FROM_CURR 1
+
+bool Connect(uint16_t time);
+bool StartLog(void);
+void ClearSamples(void);
+void HandleLog(void);
+void CloseLog(void);
+bool CheckForFiles(void);
+bool StartTransfer(void);
+bool SendStartTransfer(char *dir_str,char *file_name,uint32_t npkts);
+bool HandleTransfer(void);
+bool FinishTransfer(void);
+uint8_t CancelTransfer(void);
+uint8_t SendDataPacket(uint8_t *b,uint8_t pnum,uint8_t psize);
+uint8_t SendChunk(uint32_t csize);
+void WaitForChunkResponse(uint8_t **c);
+uint8_t EndTransfer(uint8_t rsn,uint8_t fl_chksum);
+uint8_t MarkFileAsProcessed(void);
+uint16_t ls(char *ext);
+bool FindNextFileWithExt(char *ext,uint8_t mode);
+bool QueryLogger(struct calendar_date *cl);
+bool cd(char *d);
+bool ArchiveFile(char *estr);
+
+#define CREATE_LOG	0
+#define LOG_DATA	1
+#define CLOSE_LOG	2
+
+#define START_TRANSFER  0
+#define SEND_CHUNKS		1
+#define END_TRANSFER	2
+#define RENAME_FILE		3
+#define CANCEL_TRANSFER	4
+
+#define MAX_LOG_SIZE	60
+#define MIN_LOG_SIZE	15
+
+#endif /* MAIN_H_ */
