@@ -246,6 +246,7 @@ uint8_t check_leap_year(uint8_t y)
 uint8_t wifi_state = WAIT_FOR_MESSAGE;
 int main (void)
 {
+	// Turn off watchdog timer. Set enable bit to 0.
 	wdt_disable();
 	
 	// Local Variables
@@ -253,42 +254,140 @@ int main (void)
 	//uint32_t i;
 	
 	uint8_t state = 0;
+
+	//	#define'd to 0 in main.h
 	wifi_state = WAIT_FOR_MESSAGE;
 	
+	//	Frame struct declared in xbee-api.h
 	XB_API_FRAME_t rx;
 	
+	//	CPU struct declared  /src/asf/avr32/drivers/cpu/cycle_counter/cycle_counter.h
 	t_cpu_time led_tmr;
+
+
 	uint16_t num_files;
 	
 	// Initialize Clocks
 	sysclk_init();
+
+	//	Initializes the delay driver
+	//	Takes unsigned long fcpu_hq
 	delay_init(sysclk_get_cpu_hz());
 	
+	//	Struct declared in main.h
 	sys.log.fs_chg = true;
 	sys.log.fs_err = false;
 	
 	// Initialize UI
+
+	/*
+		@function:		InitButton
+
+		@parameters:
+						uint8_t idx
+						uint8_t	pin
+
+		@declared:	/src/system/buttons.h
+
+		@summary:	Creates button
+	*/
 	InitButton(BTN_1,AVR32_PIN_PB22);
 	InitButton(BTN_2,AVR32_PIN_PB18);
+
+	/*
+		@function:		InitLed
+
+		@parameters:	
+						uint8_t		idx
+						uint32_t	pin
+
+		@declared:	/src/system/led.h
+
+		@summary:	Configures the LED struct at position 'idx'
+					with the provided pin.
+	*/
+
 	InitLed(0,LED_ONB);
 	InitLed(1,LED_LOG);
 	InitLed(2,LED_ZGB);
 	
+	/*
+		@definition:	LedOn(_l)
+
+		@parameters:	
+						uint8_t
+
+		@defined in:	/src/system/led.h
+
+		@summary:		A definition that basically redirects to led.h's 
+						LedCtrl function. Turns on LED...obviously.
+	*/
 	LedOn(0);
 	LedOn(1);
 	LedOn(2);
+
+	/*
+		@definition:	delay_s(delay)
+
+		@parameters:
+						delay in seconds
+
+		@defined in:	/src/asf/common/services/delay/delay.h
+
+		@summary:		#define delay_s(delay) 	cpu_delay_ms(1000 * delay, F_CPU)
+	*/
 	delay_s(2);
+
+	/*
+		@definition:	LedOff(_l)
+
+		@parameters:	
+						uint8_t
+
+		@defined in:	/src/system/led.h
+
+		@summary:		A definition that basically redirects to led.h's 
+						LedCtrl function. Turns off LED...obviously.
+	*/	
 	LedOff(0);
 	LedOff(1);
 	LedOff(2);
 	
-	
+	/*
+		@function:		board_init();
+
+		@parameters:
+						none
+
+		@defined in:	/src/asf/common/boards/user_board/init.c
+
+		@summary:			* This function is meant to contain board-specific initialization code
+	 						* for, e.g., the I/O pins. The initialization can rely on application-
+							* specific board configuration, found in conf_board.h.
+							*
+	*/
 	// Initialize Peripherals
 	board_init();
 	
 	// Delay to allow xbee to boot
 	//delay_s(2);
 	
+	/*
+		@function:		xb_usart_init();
+
+		@parameters:
+						none
+
+		@defined in:	/src/system/wireless/xbee-api.h
+
+		@summary:		Sets up xb module.
+							1. Configures pins
+							2. Configures serial options
+							3. Enables Module
+							4. Initializes RX buffer
+							5. Flashes LED at index 0
+							6. Enables USART Rx interrupt
+	*/
 	// Initialize and enable xbee
 	xb_usart_init();
 	//xb_rts_enb();
@@ -366,11 +465,36 @@ int main (void)
 	timestamp_valid = 0;
 	uint8_t sync_error = 0;
 	temp_block = 0;
+
+	/*
+		@function:		cpu_irq_enable();
+
+		@parameters:
+						none
+
+		@defined in:	/src/asf/common/utils/interrupt/interrupt_avr32.h
+
+		@summary:		Enables interrupts
+	*/
 	cpu_irq_enable();
 	
 	uint8_t usart_result;
 	
 	ping_timeout = 0;
+
+	/*
+		@definition:	LedBlink(_l,_b)		LedCtrl(_l, LED_STAY_ON, 0, LED_BLINK, _b)
+
+		@parameters:
+						uint8_t		idx
+						uint16_t	blink_msec
+
+		@defined in:	/src/system/led.h
+
+		@summary:		Given the index of the LED pin. It will blink it in intervals specified
+						by the second parameter blink_msec
+
+	*/
 	LedBlink(0,ping_timeout/20+20);
 	
 	while(1)
@@ -390,6 +514,19 @@ int main (void)
 				cpu_irq_enable();
 				sync_error = 0;
 				temp_block = 0;
+
+				/*
+					@function:		wifi_read(int *r);
+
+					@parameters:
+									Integer pointer
+
+					@defined in:	/src/system/wireless/xbee-api.c
+
+					@summary:		If wifi.head == wifi.tail return 0.
+									Otherwise, set r to wifi.buffer[ wifi.head - 1 ]
+									and return 1.
+				*/
 				rtn = wifi_read(&x);
 				if(rtn)
 				{
@@ -413,6 +550,16 @@ int main (void)
 				
 			case MSG_START_RCVD:
 				//cpu_irq_enable();
+
+				/*
+					@function:		cpu_set_timeout(unsigned long delay, t_cpu_time *cpu_time)
+
+					@parameters:	
+									delay: 		(input) delay in CPU cycles before timeout
+									cpu_time:	(output) internal information used by the timer API
+
+					@summary:		Sets a timer variable
+				*/
 				cpu_set_timeout(cpu_ms_2_cy(100,F_CPU),&wifi_timeout);
 				time_exprd = 1;
 				while(!cpu_is_timeout(&wifi_timeout))
@@ -454,10 +601,10 @@ int main (void)
 				cmd_val = 0;
 				cmd_str[10]=0;
 				while
-					(in_str[parse_idx] != ':' 
-					&& in_str[parse_idx]!='\n' 
-					&& in_str[parse_idx] != 0 
-					&& in_str[parse_idx] != '\r'
+					(in_str[parse_idx] 		!=	':' 
+					&& in_str[parse_idx]	!=	'\n' 
+					&& in_str[parse_idx] 	!=	0 
+					&& in_str[parse_idx] 	!=	'\r'
 					&& parse_idx < 10)
 					{
 						cmd_str[parse_idx] = in_str[parse_idx];
@@ -475,27 +622,33 @@ int main (void)
 			case HANDLE_CMD:
 				if(!strcmpi(cmd_str,"SYNC"))
 				{
-					month_str[0] = in_str[5];
-					month_str[1] = in_str[6];
-					month_str[2] = 0;
-					day_str[0] = in_str[8];
-					day_str[1] = in_str[9];
-					day_str[2] = 0;
-					year_str[0] = in_str[11];
-					year_str[1] = in_str[12];
-					year_str[2] = 0;
-					hour_str[0] = in_str[14];
-					hour_str[1] = in_str[15];
-					hour_str[2] = 0;
-					min_str[0] = in_str[17];
-					min_str[1] = in_str[18];
-					min_str[2] = 0;
-					sec_str[0] = in_str[20];
-					sec_str[1] = in_str[21];
-					sec_str[2] = 0;
+
+					month_str[0]	= in_str[5];
+					month_str[1] 	= in_str[6];
+					month_str[2] 	= 0;
+
+					day_str[0] 		= in_str[8];
+					day_str[1] 		= in_str[9];
+					day_str[2] 		= 0;
+
+					year_str[0] 	= in_str[11];
+					year_str[1] 	= in_str[12];
+					year_str[2] 	= 0;
+
+					hour_str[0] 	= in_str[14];
+					hour_str[1] 	= in_str[15];
+					hour_str[2] 	= 0;
+
+					min_str[0] 		= in_str[17];
+					min_str[1] 		= in_str[18];
+					min_str[2] 		= 0;
+
+					sec_str[0] 		= in_str[20];
+					sec_str[1] 		= in_str[21];
+					sec_str[2] 		= 0;
 										
 					b_day = atoi(day_str);
-					if(b_day<1 || b_day >31)	sync_error = 1;
+					if( b_day < 1 || b_day >31)	sync_error = 1;
 					b_month = atoi(month_str);
 					if(b_month<1 || b_month >12)	sync_error = 1;
 					b_year = atoi(year_str);
@@ -1630,7 +1783,7 @@ bool SendStartTransfer(char *dir_str,char *file_name,uint32_t fsize)
 
 	sprintf(str1,"Number of Bytes: %lu\n",fsize);
 	dbg_out(str1);
-	
+
 	tx.data[18] = RF_PACKET_SIZE;
 	tx.data[19] = CHUNK_SIZE;
 	tx.data[20] = strlen(fstr);
