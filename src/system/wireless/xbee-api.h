@@ -97,14 +97,14 @@ typedef union
 #define XB_USART_TX_TIMEOUT 10 // 10ms
 #define XB_USART_RX_TIMEOUT 5 // 5ms
 
-void xb_usart_init(void);
-uint8_t xb_write(uint8_t w);
-uint8_t xb_read(uint8_t *r);
-uint8_t xb_get_frame(XB_API_FRAME_t *frm,uint16_t tm_out);
-uint8_t xb_send_frame(XB_API_FRAME_t *frm);
-uint8_t xb_send_rf_packet(uint64_t zb_addr,uint16_t ntw_addr,uint32_t,uint16_t tm_out);
-void xb_calc_chksum(XB_API_FRAME_t *frm);
-uint8_t xb_verify_chksum(XB_API_FRAME_t *frm);
+void 		xb_usart_init(void);
+uint8_t 	xb_write(uint8_t w);
+uint8_t 	xb_read(uint8_t *r);
+uint8_t 	xb_get_frame(XB_API_FRAME_t *frm,uint16_t tm_out);
+uint8_t 	xb_send_frame(XB_API_FRAME_t *frm);
+uint8_t 	xb_send_rf_packet(uint64_t zb_addr,uint16_t ntw_addr,uint32_t,uint16_t tm_out);
+void 		xb_calc_chksum(XB_API_FRAME_t *frm);
+uint8_t 	xb_verify_chksum(XB_API_FRAME_t *frm);
 
 /* Call back function (define in user code)*/
 uint8_t xb_callback(XB_API_FRAME_t *frm);
