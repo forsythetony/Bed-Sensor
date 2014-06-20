@@ -39,11 +39,11 @@
 bool msc_enb = false;
 bool usb_attached = 0;
 
-uint8_t log_data = 0;
+uint8_t 	log_data 	= 0;
 
-uint32_t chunk_cntr = 0;
-uint8_t file_count = 5;
-uint8_t file_num = 0;
+uint32_t 	chunk_cntr 	= 0;
+uint8_t 	file_count 	= 5;
+uint8_t 	file_num 	= 0;
 
 #define BTN_1 0
 #define BTN_2 1
@@ -84,8 +84,9 @@ t_cpu_time lgr_hold_off;
 uint8_t xb_callback(XB_API_FRAME_t *frm)
 {
 	// This function will be called anytime a xb rx frame is successfully received
-	uint8_t cmd = 0;
-	uint8_t cmd_pulled = 0;
+
+	uint8_t cmd 		= 0;
+	uint8_t cmd_pulled 	= 0;
 	
 	if((frm->valid == 0x7E) && (frm->id == 0x90))
 	{
@@ -130,7 +131,9 @@ uint8_t xb_callback(XB_API_FRAME_t *frm)
 	return cmd_pulled;
 }
 
+
 void print_frame(XB_API_FRAME_t *frm);
+
 void wrl_print(char *s)
 {
 	int len = strlen(s);
@@ -140,9 +143,9 @@ void wrl_print(char *s)
 	uint8_t i;
 	XB_API_FRAME_t tx;
 	
-	tx.valid = 0x7E;
-	tx.id = 0x10;
-	tx.data[0] = 0x00; // Frame ID
+	tx.valid	= 0x7E;
+	tx.id 		= 0x10;
+	tx.data[0] 	= 0x00; // Frame ID
 	
 	for(i = 1;i<13;i++)
 	{
@@ -1470,14 +1473,15 @@ uint8_t SendChunk(uint32_t csize)
 	uint32_t bt_left;
 	
 	uint8_t c[CHUNK_SIZE*RF_PACKET_SIZE];
+
 	uint16_t i = 0;
 	uint16_t j = 0;
 	
-	uint8_t	last_pkt=0;
-	uint8_t last_size=0;
-	uint8_t c_num = 0;
-	uint8_t max_retries = 2;
-	uint8_t fail =1;
+	uint8_t		last_pkt	= 0;
+	uint8_t 	last_size	= 0;
+	uint8_t 	c_num 		= 0;
+	uint8_t 	max_retries = 2;
+	uint8_t 	fail 		= 1;
 	
 	i = 0;
 	
@@ -1491,11 +1495,11 @@ uint8_t SendChunk(uint32_t csize)
 
 	uint8_t pnum = 0;
 	
-	i = 0;
-	pnum = 0;
-	last_pkt =0;
-	last_size=0;
-	c_num =0;
+	i 			= 0;
+	pnum 		= 0;
+	last_pkt 	= 0;
+	last_size	= 0;
+	c_num 		= 0;
 		
 	bt_left = csize;
 	
@@ -1504,9 +1508,10 @@ uint8_t SendChunk(uint32_t csize)
 		if(bt_left >= RF_PACKET_SIZE)
 		{
 			SendDataPacket(&(c[i*RF_PACKET_SIZE]),i,RF_PACKET_SIZE);
-			last_size = RF_PACKET_SIZE;
-			bt_left -= RF_PACKET_SIZE;
-			last_pkt = i;
+
+			last_size 	= 	RF_PACKET_SIZE;
+			bt_left		-= 	RF_PACKET_SIZE;
+			last_pkt 	= 	i;
 			i++;
 		}
 		else
@@ -1514,9 +1519,9 @@ uint8_t SendChunk(uint32_t csize)
 
 			SendDataPacket(&(c[i*RF_PACKET_SIZE]),i,bt_left);
 			
-			last_size = bt_left;
-			last_pkt = i;
-			bt_left = 0;
+			last_size	= bt_left;
+			last_pkt 	= i;
+			bt_left 	= 0;
 			i++;
 		}
 	}
@@ -1569,12 +1574,13 @@ uint8_t SendChunk(uint32_t csize)
 				}
 				else
 				{
-					uint8_t num_lost = rxfrm.data[12];
-					uint8_t pkt_num = 0;
+					uint8_t num_lost	= rxfrm.data[12];
+					uint8_t pkt_num 	= 0;
 					
 					for(i = 0;i<num_lost;i++)
 					{
 						pkt_num = rxfrm.data[13+i];
+
 						if(pkt_num == last_pkt)
 						{
 							SendDataPacket(&(c[last_pkt*RF_PACKET_SIZE]),last_pkt,last_size);
@@ -1607,13 +1613,13 @@ bool SendStartTransfer(char *dir_str,char *file_name,uint32_t fsize)
 	dbg_out(fstr);
 	dbg_out("\n");
 	
-	tx.valid = 0x7E;
-	tx.id = 0x10;
-	tx.data[0] = 0x01;
+	tx.valid	= 0x7E;
+	tx.id 		= 0x10;
+	tx.data[0] 	= 0x01;
 	
 	for(i = 1;i<13;i++)
 	{
-		tx.data[i]=0;
+		tx.data[i] = 0;
 	}
 	
 	tx.data[13] = CMD_START_TFR;
@@ -1621,8 +1627,10 @@ bool SendStartTransfer(char *dir_str,char *file_name,uint32_t fsize)
 	tx.data[15] = (fsize >> 16) & 0x000000FF;
 	tx.data[16] = (fsize >> 8) & 0x000000FF;
 	tx.data[17] = (fsize) & 0x000000FF;
+
 	sprintf(str1,"Number of Bytes: %lu\n",fsize);
 	dbg_out(str1);
+	
 	tx.data[18] = RF_PACKET_SIZE;
 	tx.data[19] = CHUNK_SIZE;
 	tx.data[20] = strlen(fstr);

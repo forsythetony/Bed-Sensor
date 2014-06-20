@@ -28,79 +28,102 @@ uint8_t check_leap_year(uint8_t y);
 
 struct
 {
-	uint8_t state;
-	uint8_t error;
-	uint8_t quit;
+	uint8_t 	state;
+	uint8_t 	error;
+	uint8_t		quit;
 	
 	struct
 	{
 		struct  
 		{
-			uint16_t avg;
-			uint16_t p2p;
-			uint16_t mx;
-			uint16_t mn;
-		}d[8];
-	}sts;
+			uint16_t	avg;
+			uint16_t	p2p;
+			uint16_t	mx;
+			uint16_t	mn;
+
+		} d[8];
+
+	} sts;
+
 
 	struct  
 	{
-		uint8_t valid;
-		uint32_t glb_sec;
-		uint32_t glb_msec;
+		uint8_t		valid;
+		uint32_t	glb_sec;
+		uint32_t 	glb_msec;
+
 		struct calendar_date validated;		
 		struct calendar_date curr;
 		struct calendar_date last;
-	}clk;
+
+	} clk;
+
+
 	struct 
 	{
-		uint8_t sub;
-		uint8_t error;
-		bool conn;
-		uint64_t tx_cnt;
-		uint64_t rx_cnt;
-	}com;
-	
-	struct  
-	{
-		uint8_t smpl_enable;
-		uint8_t sub;
-		uint8_t error;
-		uint32_t cntr;
-		uint32_t lvl_avg;
-		uint32_t new_lvl_avg;
-		uint8_t new_threshold;
-		uint8_t mode;
-		uint8_t status;
-		bool fs_chg;
-		bool fs_err;
-	}log;
-	
-	struct  
-	{
-		uint8_t sub;
-		uint32_t secs;
-		uint32_t fsize;
-		uint32_t npkts;
-		uint32_t nchunks;
-		uint32_t rmdpkts;
-		uint32_t rmdbytes;
-		uint32_t bleft;
-		uint32_t curr_chunk;
-		uint32_t curr_pkt;
-		uint32_t rsnd_cnt;
-		uint8_t chunk[RF_PACKET_SIZE*CHUNK_SIZE];
-		uint32_t chksum;
-	}tfr;
-	struct  
-	{
-		uint8_t trgr;
-	}diag;
-}sys;
+		uint8_t		sub;
+		uint8_t		error;
 
-#define BED_DISABLED 0
-#define OFF_BED 1
-#define ON_BED  2
+		bool		conn;
+
+		uint64_t	tx_cnt;
+		uint64_t	rx_cnt;
+
+	} com;
+	
+
+	struct  
+	{
+
+		uint8_t		smpl_enable;
+		uint8_t		sub;
+		uint8_t		error;
+		uint32_t	cntr;
+		uint32_t	lvl_avg;
+		uint32_t	new_lvl_avg;
+		uint8_t		new_threshold;
+		uint8_t		mode;
+		uint8_t		status;
+
+		bool		fs_chg;
+		bool		fs_err;
+
+	} log;
+	
+
+	struct  
+	{
+
+		uint8_t		sub;
+		uint32_t	secs;
+		uint32_t 	fsize;
+		uint32_t 	npkts;
+		uint32_t 	nchunks;
+		uint32_t 	rmdpkts;
+		uint32_t 	rmdbytes;
+		uint32_t 	bleft;
+		uint32_t 	curr_chunk;
+		uint32_t 	curr_pkt;
+		uint32_t 	rsnd_cnt;
+		uint8_t 	chunk[RF_PACKET_SIZE*CHUNK_SIZE];
+		uint32_t 	chksum;
+
+	} tfr;
+
+
+	struct  
+	{
+
+		uint8_t		trgr;
+
+	} diag;
+
+
+} sys;
+
+#define BED_DISABLED 	0
+#define OFF_BED 		1
+#define ON_BED  		2
 
 // Logging Mode
 #define LOG_DISABLED	0
