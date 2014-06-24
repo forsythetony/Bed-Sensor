@@ -1,3 +1,32 @@
+/*	Dependency Information
+
+	adc.h
+	cycle_counter.h
+	intc.h
+	interrupt.h
+	calendar.h
+	fat.h
+	file.h
+	fs_com.h
+	navigation.h
+	nav_flat.h
+	gpio.h
+	flashc.h
+	ctrl_access.h
+	sd_mmc_spi.h
+	sd_mmc_spi_mem.h
+	spi.h
+	sysclk.h
+	delay.h
+	tc.h
+	twi.h
+	serial.h
+	usart.h
+	compiler.h
+	status_codes.h
+	board.h
+	wdt.h
+*/
 /**
  * \file
  *
