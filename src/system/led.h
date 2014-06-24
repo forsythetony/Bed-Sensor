@@ -22,9 +22,9 @@
 
 #define NUM_LEDS 3
 
-#define LED_OFF 0
-#define LED_ON	1
-#define LED_BLINK 2
+#define LED_OFF 	0
+#define LED_ON		1
+#define LED_BLINK 	2
 
 #define LED_STAY_ON 0
 #define LED_TIMED	1
