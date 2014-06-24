@@ -1,3 +1,26 @@
+/*	Dependency Information
+
+	asf.h
+	compiler.h
+	string.h
+	stdio.h
+	ctype.h
+	conf_sd_mmc_spi.h
+	navigation.h
+	user_board.h
+	calendar.h
+	twi.h
+
+
+	main.h
+	system/buttons.h
+	system/led.h
+	system/wireless/xbee-api.h
+	system/rtc.h
+	wdt.h
+
+*/
+
 /**
  * \file
  *
