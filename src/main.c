@@ -104,6 +104,7 @@ extern volatile uint32_t ping_timeout;
 
 t_cpu_time lgr_hold_off;
 
+/*
 uint8_t xb_callback(XB_API_FRAME_t *frm)
 {
 	// This function will be called anytime a xb rx frame is successfully received
@@ -153,6 +154,7 @@ uint8_t xb_callback(XB_API_FRAME_t *frm)
 	
 	return cmd_pulled;
 }
+*/
 
 
 void print_frame(XB_API_FRAME_t *frm);
