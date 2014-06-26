@@ -259,6 +259,7 @@ extern uint8_t log_data;
 #define MSG_ERROR			4
 #define MSG_RESTART			5
 
+
 //	File System
 
 uint16_t ls(char *ext);
@@ -294,11 +295,13 @@ void HandleLog(void);
 void CloseLog(void);
 bool QueryLogger(volatile rtc_t *cl);
 
+
 //	Time
 
 bool TimeValid(rtc_t *t);
 void add_second_to_date(void);
 uint8_t check_leap_year(uint8_t y);
+
 
 //	Other
 
