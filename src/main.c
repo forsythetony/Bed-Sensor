@@ -278,19 +278,19 @@ int main (void)
 	
 	//uint32_t i;
 	
-	uint8_t state = 0;
+
 
 	//	#define'd to 0 in main.h
 	wifi_state = WAIT_FOR_MESSAGE;
 	
 	//	Frame struct declared in xbee-api.h
-	XB_API_FRAME_t rx;
+
 	
 	//	CPU struct declared  /src/asf/avr32/drivers/cpu/cycle_counter/cycle_counter.h
-	t_cpu_time led_tmr;
 
 
-	uint16_t num_files;
+
+
 	
 	// Initialize Clocks
 	sysclk_init();
@@ -418,14 +418,14 @@ int main (void)
 	//xb_rts_enb();
 
 	// Initialize Real time clock	
-	rtc_t t;
+
 	//rtc_init();	
 	//rtc_get_time(&sys_time);
 
 
 	//cpu_irq_enable();
 	
-	uint8_t d[7];
+
 	
 	// Reset State Machine
 	sys.state = IDLE;
@@ -442,9 +442,9 @@ int main (void)
 	//	SampleThreshold();
 	//}
 	
-	t_cpu_time last_lgr_query_tmr;
+
 	t_cpu_time wifi_timeout;
-	uint32_t lst_qry_cntr = 0;
+
 	//cpu_set_timeout(cpu_ms_2_cy(LGR_QRY_TIMEOUT,F_CPU),&last_lgr_query_tmr);
 	//cpu_set_timeout(cpu_ms_2_cy(5000,F_CPU),&lgr_hold_off);
 	
@@ -460,9 +460,9 @@ int main (void)
 	//sprintf(str1,"RTC @ Boot: %u-%u-%u %u:%02u:%02u\n",b_month,b_day,b_year,b_hour,b_min,b_sec);
 	//dbg_out(str1);
 	
-	uint8_t i = 0;
+
 	
-	uint32_t cntr5 = 0;
+
 	
 	int x = 0;
 	uint8_t data_idx = 0;
@@ -477,7 +477,7 @@ int main (void)
 	//LedBlink(0,100);
 	
 	sys.log.smpl_enable = 0;
-	char hld = 0;
+
 	uint8_t rtn = 0;
 	
 	char day_str[3] = "";
@@ -503,7 +503,7 @@ int main (void)
 	*/
 	cpu_irq_enable();
 	
-	uint8_t usart_result;
+
 	
 	ping_timeout = 0;
 
@@ -767,7 +767,6 @@ void HandleXBeeFrame(void)
 	XB_API_FRAME_t frm;
 	while(xb_get_frame(&frm,XB_RX_NO_BLOCK))
 	{
-		uint8_t cmd = frm.data[11];
 		
 		/*
 		if((frm.valid == 0x7E) && (frm.id == 0x90))
@@ -1084,7 +1083,7 @@ bool SampleThreshold(void)
 		t_cpu_time samp_time;
 		cpu_set_timeout(cpu_ms_2_cy(5100,F_CPU),&samp_time);
 		
-		uint16_t num_samps;
+
 		uint32_t avg = 0;
 		while(!cpu_is_timeout(&samp_time));
 		
@@ -1511,7 +1510,6 @@ void CloseLog(void)
 
 bool CheckForFiles(void)
 {
-	uint8_t f_idx = 0;
 
 	if(sys.log.fs_chg == false)
 	{
@@ -1571,7 +1569,7 @@ bool CheckForFiles(void)
 bool StartTransfer(void)
 {
 	char dstr[30] = "";
-	uint32_t fl_len = 0;
+	
 	if(!file_open(FOPEN_MODE_R))
 	{
 		sprintf(str1,"Failed to Open File %u\n",fs_g_status);
@@ -1646,7 +1644,7 @@ bool StartTransfer(void)
 
 uint8_t SendChunk(uint32_t csize)
 {
-	XB_API_FRAME_t rxfrm,tx;
+	XB_API_FRAME_t rxfrm;
 	
 	uint32_t bt_left;
 	
@@ -1659,11 +1657,11 @@ uint8_t SendChunk(uint32_t csize)
 	uint8_t 	last_size	= 0;
 	uint8_t 	c_num 		= 0;
 	uint8_t 	max_retries = 2;
-	uint8_t 	fail 		= 1;
+	
 	
 	i = 0;
 	
-	uint8_t numpkt = csize/(CHUNK_SIZE*RF_PACKET_SIZE);
+	
 	
 
 	if(!file_read_buf(c,csize))
