@@ -25,15 +25,14 @@
 
 #define LOGGING_THRESHOLD 4096
 
-#define MAX_CHUNK_RESENDS 5
-#define CHUNK_SIZE	70
-#define MAX_LOG_DIR_LEN	20
-#define MAX_FNAME_LEN	64-MAX_LOG_DIR_LEN
+#define MAX_CHUNK_RESENDS	5
+#define CHUNK_SIZE			70
+#define MAX_LOG_DIR_LEN		20
+#define MAX_FNAME_LEN		64-MAX_LOG_DIR_LEN
 
 volatile uint16_t data_sample[8];
 
-void add_second_to_date(void);
-uint8_t check_leap_year(uint8_t y);
+
 
 struct
 {
@@ -245,8 +244,8 @@ extern uint8_t log_data;
 
 #define _d(_ch,_i)	(data[log_data][(_ch)][(_i)])
 
-#define FROM_START 0
-#define FROM_CURR 1
+#define FROM_START	0
+#define FROM_CURR	1
 
 
 //XBEE WIFI
@@ -254,18 +253,27 @@ extern uint8_t log_data;
 #define MSG_START_RCVD		1
 #define PARSE_CMD			2
 #define HANDLE_CMD			3
-#define SYNC_CMD		1	//#SDD-MM-YY_HH:MM:SS\n
-#define START_CMD		2
-#define STOP_CMD		3
+#define SYNC_CMD			1	//#SDD-MM-YY_HH:MM:SS\n
+#define START_CMD			2
+#define STOP_CMD			3
 #define MSG_ERROR			4
 #define MSG_RESTART			5
 
-bool Connect(uint16_t time);
-bool StartLog(void);
-void ClearSamples(void);
-void HandleLog(void);
-void CloseLog(void);
+//	File System
+
+uint16_t ls(char *ext);
+bool cd(char *d);
+uint8_t MarkFileAsProcessed(void);
+bool FindNextFileWithExt(char *ext,uint8_t mode);
+bool ArchiveFile(char *estr);
 bool CheckForFiles(void);
+bool InitFolderStructure(void);
+bool CleanUpOldFiles(void)
+
+
+//	Data Transfer
+
+bool Connect(uint16_t time);
 bool StartTransfer(void);
 bool SendStartTransfer(char *dir_str,char *file_name,uint32_t npkts);
 bool HandleTransfer(void);
@@ -275,26 +283,35 @@ uint8_t SendDataPacket(uint8_t *b,uint8_t pnum,uint8_t psize);
 uint8_t SendChunk(uint32_t csize);
 void WaitForChunkResponse(uint8_t **c);
 uint8_t EndTransfer(uint8_t rsn,uint8_t fl_chksum);
-uint8_t MarkFileAsProcessed(void);
-uint16_t ls(char *ext);
-bool FindNextFileWithExt(char *ext,uint8_t mode);
-bool QueryLogger(volatile rtc_t *cl);
-bool cd(char *d);
-bool ArchiveFile(char *estr);
-bool InitFolderStructure(void);
-bool TimeValid(rtc_t *t);
-void SoftwareReset(void);
-
 void send_data();
+void HandleXBeeFrame(void);
+
+
+//	Logging
+
+bool StartLog(void);
+void HandleLog(void);
+void CloseLog(void);
+bool QueryLogger(volatile rtc_t *cl);
+
+//	Time
+
+bool TimeValid(rtc_t *t);
+void add_second_to_date(void);
+uint8_t check_leap_year(uint8_t y);
+
+//	Other
+
+void ClearSamples(void);
+void SoftwareReset(void);
+bool LoadThreshold(void);
+bool SampleThreshold(void);
+void RunDiagnostics(void);
+void HandleSystemStatus(void);
 
 //void HandleXBFrame(XB_API_FRAME_t *frm);
 
-bool LoadThreshold(void);
-bool SampleThreshold(void);
-bool CleanUpOldFiles(void);
-void RunDiagnostics(void);
-void HandleXBeeFrame(void);
-void HandleSystemStatus(void);
+
 
 #define CREATE_LOG	0
 #define LOG_DATA	1
@@ -309,7 +326,7 @@ void HandleSystemStatus(void);
 #define MAX_LOG_SIZE	600
 #define MIN_LOG_SIZE	15
 
-#define LGR_QRY_TIMEOUT 5000
+#define LGR_QRY_TIMEOUT		5000
 #define LOGGER_QUERY_PERIOD 1 //Min
 
 #endif /* MAIN_H_ */
