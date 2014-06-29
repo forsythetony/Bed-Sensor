@@ -762,34 +762,6 @@ void PrintData(char *str_print)
 	
 }
 
-void HandleXBeeFrame(void)
-{
-	XB_API_FRAME_t frm;
-	while(xb_get_frame(&frm,XB_RX_NO_BLOCK))
-	{
-		
-		/*
-		if((frm.valid == 0x7E) && (frm.id == 0x90))
-		{
-			switch (cmd)
-			{
-				case CMD_RESET:
-				dbg_out("Reset Command Received");
-				SoftwareReset();
-				break;
-				case CMD_DIAGNOSTICS:
-				dbg_out("Diagnostics Code:");
-				sys.diag.trgr=1;
-				
-				break;
-				default:
-				break;
-			}
-		}
-		*/
-	}
-}
-
 void SoftwareReset(void)
 {
 	//dbg_out("Software Reset");
