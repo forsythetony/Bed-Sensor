@@ -1987,30 +1987,3 @@ uint8_t CancelTransfer(void)
 	dbg_out("Canceling Transfer...\n");
 	return(EndTransfer(2,0));
 }
-
-void print_frame(XB_API_FRAME_t *frm)
-{
-	uint8_t i;
-	char c = 0;
-	char str[100] ="";
-	dbg_out("\n\nFrame Received:\n-------------\n");
-	sprintf(str,"DL: 0x%02X\n",frm->valid); dbg_out(str);
-	sprintf(str,"LN: 0x%04X\n",frm->len); dbg_out(str);
-	sprintf(str,"ID: 0x%02X\n",frm->id); dbg_out(str);
-	for(i = 0; i<frm->len-1;i++)
-	{
-		if(isalnum(frm->data[i])) 
-		{
-			c = frm->data[i];
-		}					
-		else
-		{
-			c = ' ';
-		}
-		sprintf(str,"%02u: %c[%02X]\n",i+1,c,frm->data[i]);
-		dbg_out(str);
-	}
-	
-	sprintf(str,"CS: %02X\n\n----------------------------",frm->chk_sum);
-	dbg_out(str);
-}
