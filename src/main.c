@@ -762,6 +762,10 @@ void PrintData(char *str_print)
 	
 }
 
+/*	#DELETIONTAGFUNCTION
+
+	Reason:	Do we need xbee functions?
+*/	
 void HandleXBeeFrame(void)
 {
 	XB_API_FRAME_t frm;
@@ -789,6 +793,7 @@ void HandleXBeeFrame(void)
 		*/
 	}
 }
+//	#ENDDELETIONTAGFUNCTION
 
 void SoftwareReset(void)
 {
