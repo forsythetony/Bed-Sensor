@@ -36,7 +36,6 @@
 //zigbee -t 0013a200409e96cd
 
 #include <asf.h>
-#include <compiler.h>
 
 #include "main.h"
 
@@ -50,7 +49,7 @@
 #include "system/wireless/xbee-api.h"
 
 #include <user_board.h>
-#include <calendar.h>
+
 #include <twi.h> 
 #include "system/rtc.h"
 #include "wdt.h"
