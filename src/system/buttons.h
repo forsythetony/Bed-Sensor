@@ -1,4 +1,4 @@
-/*	Dependency Information
+ /*	Dependency Information
 
 	compiler.h
 	asf.h
@@ -54,11 +54,11 @@ typedef struct BUTTON_t
 extern BUTTON_t btn[NUM_BTNS];
 
 
-void HandleButtons(void);
+void	HandleButtons(void);
 uint8_t InitButton(uint8_t idx,uint8_t pin);
 uint8_t GetButtonPush(uint8_t b);
 uint8_t GetButtonReleased(uint8_t b);
-void ClearButtons(void);
+void	ClearButtons(void);
 uint8_t GetButtonHeld(uint8_t b,uint32_t hld_time);
 
 
