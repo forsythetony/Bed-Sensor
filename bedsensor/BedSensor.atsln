@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Atmel Studio Solution File, Format Version 11.00
+Project("{54F91283-7BC4-4236-8FF9-10F437C3AD48}") = "BedSensor", "BedSensor.cproj", "{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}"
+EndProject
+Global
+	GlobalSection(SubversionScc) = preSolution
+		Svn-Managed = True
+		Manager = AnkhSVN - Subversion Support for Visual Studio
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AVR = Debug|AVR
+		Debug16MHZ|AVR = Debug16MHZ|AVR
+		Release|AVR = Release|AVR
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}.Debug|AVR.ActiveCfg = Debug|AVR
+		{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}.Debug|AVR.Build.0 = Debug|AVR
+		{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}.Debug16MHZ|AVR.ActiveCfg = Debug16MHZ|AVR
+		{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}.Debug16MHZ|AVR.Build.0 = Debug16MHZ|AVR
+		{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}.Release|AVR.ActiveCfg = Release|AVR
+		{E52109A4-2ACB-4BF7-B06D-1EB911D9F014}.Release|AVR.Build.0 = Release|AVR
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,1068 @@
+/**
+ * \file
+ *
+ * \brief Empty user application template
+ *
+ */
+
+/*
+ * Include header files for all drivers that have been imported from
+ * Atmel Software Framework (ASF).
+ */
+
+
+#include <asf.h>
+#include <compiler.h>
+
+
+
+#include "main.h"
+
+#include <string.h>
+#include <stdio.h>
+#include <ctype.h>
+
+#include <conf_sd_mmc_spi.h>
+#include <navigation.h>
+
+#include "system/buttons.h"
+#include "system/led.h"
+#include "system/wireless/xbee-api.h"
+#include <user_board.h>
+
+#include <calendar.h>
+
+bool msc_enb = false;
+bool usb_attached = 0;
+
+uint8_t log_data = 0;
+
+uint32_t chunk_cntr = 0;
+uint8_t file_count = 5;
+uint8_t file_num = 0;
+
+#define BTN_1 0
+#define BTN_2 1
+
+char pstr[100];
+char fstr[100];
+
+char str1[100];
+char str2[100];
+char str3[100];
+
+uint8_t blk[200];
+
+extern volatile uint8_t time_valid;
+extern volatile struct calendar_date sys_time;
+
+void print_frame(XB_API_FRAME_t *frm);
+
+int main (void)
+{
+	// Local Variables
+	uint32_t i;
+	
+	XB_API_FRAME_t rx;
+	
+	t_cpu_time led_tmr;
+	uint16_t num_files;
+	
+	// Initialize Clocks
+	sysclk_init();
+	delay_init(sysclk_get_cpu_hz());
+	
+	InitButton(BTN_1,AVR32_PIN_PB22);
+	InitButton(BTN_2,AVR32_PIN_PB18);
+	
+	InitLed(0,LED_ONB);
+	InitLed(1,LED_LOG);
+	InitLed(2,LED_ZGB);
+	
+	board_init();
+
+	xb_usart_init();
+	xb_rts_enb();
+	
+	cpu_irq_enable();
+	
+	sys.state = IDLE;
+	sys.log.on_bed = false;
+	
+	sys.log.smpl_enable = 1;
+	
+	dbg_out("START\n");
+	
+
+	
+	while(1)
+	{
+		if(GetButtonHeld(BTN_2,1000))
+		{
+			if(sys.log.on_bed == 0) 
+			{
+				sys.log.on_bed = 1;
+				sprintf(str1,"On Bed Enabled\n");
+				dbg_out(str1);
+			}
+			else
+			{
+				sys.log.on_bed = 0;
+				sprintf(str1,"On Bed Disabled\n");
+				dbg_out(str1);
+			}
+		}
+		
+		switch(sys.state)
+		{
+			/* ---------------IDLE------------------*/
+			case IDLE:
+				
+				sprintf(str1,"Waiting for Button Push\n");
+				dbg_out(str1);
+				
+				while(!GetButtonPush(BTN_1))	xb_get_frame(&rx,XB_RX_NO_BLOCK);
+				// Try to connect to system
+				
+				if(sys.com.conn != 1)
+				{
+					sprintf(str1,"Trying to connect to Logger\n");
+					dbg_out(str1);
+					if(QueryLogger(&(sys_time)))
+					{
+						sys.com.conn = 1;
+						time_valid = 1;
+
+						sprintf(str1,"Connected!\n");
+						dbg_out(str1);
+						sys.state = ACTIVE;
+						time_valid = 1;
+						break;
+					}
+					else
+					{
+						sprintf(str1,"Connection Failed\n");
+						dbg_out(str1);
+						delay_s(5);
+					}
+				}
+				break;
+				
+			/* ---------------Active------------------*/
+			case ACTIVE:
+				if(sys.log.on_bed == 1)
+				{
+					sprintf(str1,"On bed: Starting Log\n");
+					dbg_out(str1);
+					sys.state = LOGGING;
+					sys.log.sub = CREATE_LOG;
+					break;
+				}
+				
+				
+				if(CheckForFiles())
+				{
+					sys.state = TRANSFER;
+					sys.tfr.sub = START_TRANSFER;
+					break;
+				}
+				break;
+				
+			
+			/*--------------TRANSFER---------------*/	
+			case TRANSFER:
+				switch(sys.tfr.sub)
+				{
+					case START_TRANSFER:
+						
+						if(!StartTransfer())
+						{
+							sys.state = IDLE;
+							break;
+						}
+						
+						sys.tfr.sub = SEND_CHUNKS;
+						sys.tfr.curr_chunk = 0;
+						break;
+						
+					case SEND_CHUNKS:
+					
+						if(sys.log.on_bed == 1)
+						{
+							sys.tfr.sub = CANCEL_TRANSFER;
+							break;
+						}
+					
+						if(sys.tfr.bleft != 0)
+						{
+							sprintf(str1,"Sending Chunk %lu/%lu\n",1+sys.tfr.curr_chunk++,sys.tfr.nchunks);
+							dbg_out(str1);
+							if(sys.tfr.bleft>= CHUNK_SIZE*RF_PACKET_SIZE)
+							{
+								if(!SendChunk(CHUNK_SIZE*RF_PACKET_SIZE))
+								{
+									sys.state = ERROR;
+									break;
+								}
+								sys.tfr.bleft -= CHUNK_SIZE*RF_PACKET_SIZE;
+							}
+							else
+							{
+								if(!SendChunk(sys.tfr.bleft))
+								{
+									sys.state = ERROR;
+									break;
+								}
+								sys.tfr.bleft = 0;
+								sys.tfr.sub = END_TRANSFER;
+								break;
+							}
+						}
+						
+						break;
+						
+					case CANCEL_TRANSFER:
+						file_close();
+						nav_exit();
+						if(!CancelTransfer())
+						{
+							sys.state = ERROR;
+							break;
+						}
+						
+						sys.state = ACTIVE;
+						break;
+						
+					case END_TRANSFER:
+						file_close();
+						dbg_out("Ending Transfer\n");
+						if(!EndTransfer(1,0))
+						{
+							sys.state = ERROR;
+							break;
+						}
+
+						dbg_out("Archiving File\n");
+						if(!ArchiveFile(".old"))
+						{
+							dbg_out("File Archiving Failed\n");
+							sys.state = ERROR;
+							break;
+						}
+						sys.state = ACTIVE;
+						break;
+					default:
+						break;
+				}
+				break;
+				
+				
+			/* ---------------LOGGING------------------*/
+			case LOGGING:
+				switch(sys.log.sub)
+				{
+					case CREATE_LOG:
+						sprintf(str1,"Create New Log\n");
+						dbg_out(str1);
+						uint8_t resp;
+						if(!StartLog()) 
+						{
+							sys.state = ERROR;
+						}
+						else
+						{
+							sprintf(str1,"Success\n");
+							sys.log.sub = LOG_DATA;
+						}
+						break;
+						
+					case LOG_DATA:
+						if(sys.log.on_bed == 0)
+						{
+							sprintf(str1,"Off bed: Closing Log\n");
+							sys.log.sub = CLOSE_LOG;
+							break;
+						}
+						if(data_rdy)
+						{
+							HandleLog();
+							sys.log.cntr++;
+						}
+
+						
+						if(sys.log.cntr == MAX_LOG_SIZE)
+						{
+							sprintf(str1,"Log at MAX Size\n");
+							sys.log.sub = CLOSE_LOG;
+							break;
+						}
+						break;
+						
+					case CLOSE_LOG:
+						CloseLog();
+						if(sys.log.cntr < MIN_LOG_SIZE)
+						{
+							sprintf(str1,"Log is to small\n");
+							nav_file_del(false);
+							sys.state = ACTIVE;
+							nav_exit();
+							break;
+						}
+						else
+						{
+							if(sys.log.on_bed == 1)
+							{
+								sys.log.sub = CREATE_LOG;	
+							}
+							else
+							{
+								sys.state = ACTIVE;
+							}
+						}
+						break;
+				}
+				break;
+				
+			case ERROR:
+				
+				dbg_out("Error\n");
+				
+				sys.state = IDLE;
+				break;
+				
+			default:
+				break;
+		}
+	}
+
+}
+
+bool ArchiveFile(char *estr)
+{
+	nav_select(1);
+	nav_drive_set(0);
+	nav_select(0);
+	
+	if(!nav_file_getname(pstr,60))
+	{
+		sprintf(str1,"nav_file_getname failed: %u\n",fs_g_status);
+		return false;
+	}
+	
+	if(!nav_file_copy())
+	{
+		sprintf(str1,"Copy Failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	if(!nav_flat_root())
+	{
+		sprintf(str1,"Nav_flat_root Failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	if(!nav_flat_findname("old",false))
+	{
+		sprintf(str1,"nav_flat_findname failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	if(!nav_flat_cd())
+	{
+		sprintf(str1,"nav_flat_cd failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	sprintf(str2,"%s%s",pstr,estr);
+	
+	if(!nav_file_paste_start(str2))
+	{
+		sprintf(str1,"nav_file_paster_start failed: %u\n",fs_g_status);
+		return false;
+	}
+	
+	uint8_t resp;
+	
+	do 
+	{
+		resp = nav_file_paste_state(false);
+	} while (resp == COPY_BUSY);
+	
+	if(resp == COPY_FAIL)
+	{
+		dbg_out("Copy Failed\n");
+		return false;
+	}
+	
+	nav_select(1);
+	
+	nav_file_del(false);
+	nav_select(0);
+	
+	nav_exit();
+	return true;
+}
+
+bool QueryLogger(struct calendar_date *cl)
+{
+	
+	uint8_t i;
+	uint16_t year;
+	uint8_t month,day,hour,min,sec;
+	XB_API_FRAME_t rx,tx;
+	
+	tx.valid = 0x7E;
+	tx.id = 0x10;
+	tx.data[0] = 0x01; // Frame ID
+	
+	for(i = 1;i<13;i++)
+	{
+		tx.data[i]=0;
+	}
+	
+	tx.data[13] = CMD_QUERY_LGR;
+	tx.len = 15;
+	
+	xb_send_frame(&tx);
+	
+	if(!xb_get_frame(&rx,500))
+	{
+		dbg_out("Query Logger Ack Timeout\n");
+		return false;
+	}
+	dbg_out("Zigbee Ack Recived\n");
+	
+	dbg_out("Waiting for Query Response\n");
+	
+	if(!xb_get_frame(&rx,2000))
+	{
+		dbg_out("Query Logger Resp Timeout\n");
+		return false;
+	}
+	
+	if((rx.valid == 0x7E) && (rx.id == 0x90) && (rx.data[11] = 0x69))
+	{
+		dbg_out("Start Response Received\n");
+	}
+	else
+	{
+		dbg_out("Start Response Failure\n");
+		return false;
+	}
+	
+	year = (uint16_t)(rx.data[12]) + 2000;
+	month = rx.data[13];
+	day = rx.data[14];
+	hour = rx.data[15];
+	min = rx.data[16];
+	sec = rx.data[17];
+	
+	cpu_irq_disable();
+	cl->year = year;
+	cl->month = month;
+	cl->date = day-1;
+	cl->hour = hour;
+	cl->minute = min;
+	cl->second = sec;
+	
+	sprintf(str1,"%u:%02u:%02u %u-%u-%u\n",cl->hour,cl->minute,cl->second,cl->month,cl->date+1,cl->year);
+
+	cpu_irq_enable();
+	
+	return true;
+}
+
+
+bool StartLog(void)
+{
+	nav_reset();
+	if(!nav_select(0))
+	{
+		sprintf(str1,"Nav_select Failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	if(!nav_drive_set(0))
+	{
+		sprintf(str1,"Navigator 0 Error: Could not set drive\n");
+		return false;
+	}
+	
+	if(!nav_partition_mount())
+	{
+		sprintf(str1,"Partition Mount Failed: %u\n",fs_g_status-1);
+	}
+	
+	if(!nav_flat_reset())
+	{
+		sprintf(str1,"nav_flat_reset failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	if(!nav_flat_findname("data",false))
+	{
+		sprintf(str1,"nav_flat_findname failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	if(!nav_flat_cd())
+	{
+		sprintf(str1,"nav_flat_cd failed: %u\n",fs_g_status-1);
+		return false;
+	}
+	
+	cpu_irq_disable();	
+	uint16_t year = sys_time.year;
+	uint8_t month = sys_time.month;
+	uint8_t day = sys_time.date+1;
+	uint8_t hour = sys_time.hour;
+	uint8_t min = sys_time.minute;
+	uint8_t sec = sys_time.second;
+	cpu_irq_enable();	
+	sprintf(str3,"%04u_%02u_%02u_%02u_%02u_%02u.bed",year,month,day,hour,min,sec);
+	dbg_out("File:");
+	dbg_out(str3);
+	dbg_out("\n");
+
+	if(!nav_file_create(str3))
+	{
+		sprintf(str1,"Error Creating File: %u\n",(fs_g_status-1));
+		return false;
+	}
+	
+	sprintf(str1,"Creating File: %s\n",str3);
+	
+	if(!file_open(FOPEN_MODE_W))
+	{
+		dbg_out("File Not Opened\n");
+		return false;
+	}
+	dbg_out("File Opened\n");
+	
+	blk[0] = 0;
+	blk[1] = (uint8_t)(year-2000);
+	blk[2] = month;
+	blk[3] = day;
+	blk[4] = hour;
+	blk[5] = min;
+	blk[6] = sec;
+	
+	file_write_buf(blk,7);
+	
+	ClearSamples();
+	sys.log.cntr = 0;
+	return true;
+}
+
+void ClearSamples(void)
+{
+	cpu_irq_disable();
+	data_idx = 0;
+	data_rdy = 0;
+	curr_data = 0;
+	cpu_irq_enable();
+}
+
+void HandleLog(void)
+{
+	uint16_t i;
+	uint16_t idx = 1;
+	
+	if(curr_data == 0) log_data = 1;
+	else
+	{
+		log_data = 0;
+	}
+	
+	blk[0]=0x01;
+	
+
+		for(i = 0;i<100;i++)
+		{
+			blk[idx] = (_d(F1,i)>>4) & 0x00FF;
+			blk[idx+1] = (_d(F2,i)>>4) & 0x00FF;
+			blk[idx+2] = ((_d(F1,i) & 0x000F) << 4) + (_d(F2,i) & 0x000F);
+			
+			blk[idx+3] = (_d(F3,i)>>4) & 0x00FF;
+			blk[idx+4] = (_d(F4,i)>>4) & 0x00FF;
+			blk[idx+5] = ((_d(F3,i) & 0x000F) << 4) + (_d(F4,i) & 0x000F);
+			
+			blk[idx+6] = (_d(R1,i)>>4) & 0x00FF;
+			blk[idx+7] = (_d(R2,i)>>4) & 0x00FF;
+			blk[idx+8] = ((_d(R1,i) & 0x000F) << 4) + (_d(R2,i) & 0x000F);
+			
+			blk[idx+9] = (_d(R3,i)>>4) & 0x00FF;
+			blk[idx+10] = (_d(R4,i)>>4) & 0x00FF;
+			blk[idx+11] = ((_d(R3,i) & 0x000F) << 4) + (_d(R4,i) & 0x000F);
+			
+			idx+=12;
+		}
+		
+		data_rdy = 0;
+		file_write_buf(blk,1201);
+}
+
+void CloseLog(void)
+{
+	blk[0] = 0xA5;
+	blk[1] = 0x5A;
+	file_write_buf(blk,2);
+	file_flush();
+	file_close();
+	dbg_out("File Closed\n");
+}
+
+bool CheckForFiles(void)
+{
+	uint8_t f_idx = 0;
+	nav_reset();
+	if(!nav_drive_set(0))	
+	{
+		sprintf(str1,"nav_drive_set failed: %u\n",fs_g_status);
+		nav_exit();
+		return false;
+	}		
+		
+	if(!nav_partition_mount()) 
+	{
+		sprintf(str1,"nav_partition_mount failed: %u\n",fs_g_status);
+		nav_exit();
+		return false;
+	}		
+	
+	if(!nav_filelist_findname("data",false))
+	{
+		sprintf(str1,"nav_filelist_findname failed: %u\n",fs_g_status);
+		nav_exit();
+		return false;
+	}
+	
+	if(!nav_flat_cd())
+	{
+		sprintf(str1,"nav_flat_cd failed: %u\n",fs_g_status);
+		nav_exit();
+		return false;
+	}
+	
+	if(!nav_filelist_set(0,FS_FIND_NEXT)) 
+	{
+		sprintf(str1,"nav_filelist_set failed: %u\n",fs_g_status);
+		nav_exit();
+		return false;
+	}
+	
+	return true;
+}
+
+bool StartTransfer(void)
+{
+	uint32_t fl_len = 0;
+	if(!file_open(FOPEN_MODE_R))
+	{
+		dbg_out("Failed to Open File\n");
+		return false;
+	}
+	else
+	{
+		dbg_out("File Opened\n");
+		sys.tfr.bleft = nav_file_lgt();
+		
+		if(!nav_file_lgt()) 
+		{
+			nav_file_del(false);
+			return false;
+		}			
+		sys.tfr.fsize = sys.tfr.bleft;
+		
+		sys.tfr.npkts = sys.tfr.fsize/RF_PACKET_SIZE;
+		if(sys.tfr.fsize%RF_PACKET_SIZE != 0)
+		{
+			sys.tfr.npkts++;
+		}	
+		
+		sys.tfr.rmdbytes = sys.tfr.fsize%(CHUNK_SIZE*RF_PACKET_SIZE);
+		
+		sys.tfr.nchunks = sys.tfr.npkts/CHUNK_SIZE;
+		if(sys.tfr.npkts%CHUNK_SIZE != 0)
+		{
+			sys.tfr.nchunks++;
+		}
+	}
+	
+	nav_file_getname(pstr,90);
+	
+	dbg_out("Send Start Transfer Request\n");
+	
+	if(!SendStartTransfer("data",pstr,sys.tfr.fsize))
+	{
+		dbg_out("Start Transfer Failed\n");
+		return false;
+	}
+	
+	dbg_out("Transfer Started\n");
+	return true;
+}
+
+uint8_t SendChunk(uint32_t csize)
+{
+	XB_API_FRAME_t rx;
+	
+	uint8_t c[CHUNK_SIZE*RF_PACKET_SIZE];
+	uint16_t i = 0;
+	
+	uint8_t	last_pkt=0;
+	uint8_t last_size=0;
+	uint8_t c_num = 0;
+	
+	i = 0;
+	
+	uint8_t numpkt = csize/(CHUNK_SIZE*RF_PACKET_SIZE);
+	uint32_t bt_left = csize;
+
+	if(!file_read_buf(c,csize))
+	{
+		return false;
+	}
+	
+	uint8_t pnum = 0;
+	
+
+	
+	while(bt_left)
+	{
+
+		if(bt_left >= RF_PACKET_SIZE)
+		{
+			//sprintf(str1,"Sending Reg Packet %u Bytes Left: %u\n",i,bt_left);
+			//dbg_out(str1);
+			
+			if(!SendDataPacket(&(c[i*RF_PACKET_SIZE]),i,RF_PACKET_SIZE))
+			{
+				dbg_out("Send Packet Failed\n");
+				return false;
+			}
+			last_size = RF_PACKET_SIZE;
+			bt_left -= RF_PACKET_SIZE;
+			last_pkt = i;
+			i++;
+		}
+		else
+		{
+			//sprintf(str1,"Sending Short Packet %u Bytes Left: %u\n",i,bt_left);
+			//dbg_out(str1);
+			if(!SendDataPacket(&(c[i*RF_PACKET_SIZE]),i,bt_left))
+			{
+				dbg_out("Send Packet Failed\n");
+				return false;
+			}
+			
+			last_size = bt_left;
+			last_pkt = i;
+			bt_left = 0;
+			i++;
+		}
+	}
+	
+	uint8_t max_retries = 2;
+	//dbg_out("Waiting for Chunk Response\n");
+	
+	while(max_retries--)
+	{
+		if(!xb_get_frame(&rx,5000)) return false;
+
+		if((rx.valid == 0x7E) && (rx.id == 0x90) && (rx.data[11] = CMD_CHUNK_RESP))
+		{
+			//dbg_out("Chunk Response Received\n");
+			
+			if(rx.data[12] == 0)
+			{
+				//dbg_out("Chunk Sent\n");
+				return true;
+			}				
+			else
+			{
+				
+				uint8_t num_lost = rx.data[12];
+				sprintf(str1,"Total Missing %u\n",num_lost);
+				dbg_out(str1);
+				uint8_t pkt_num = 0;
+				
+				for(i = 0;i<num_lost;i++)
+				{
+					pkt_num = rx.data[13+i];
+					//sprintf(str1,"[%u]\n",pkt_num);
+					//dbg_out(str1);
+					if(pkt_num == last_pkt)
+					{
+						if(!SendDataPacket(&(c[last_pkt*RF_PACKET_SIZE]),last_pkt,last_size)) return false;
+					}
+					else
+					{
+						if(!SendDataPacket(&(c[pkt_num*RF_PACKET_SIZE]),pkt_num,RF_PACKET_SIZE)) return false;
+					}						
+				}
+			}
+		}
+	}
+	
+	return false;
+}
+
+bool SendStartTransfer(char *dir_str,char *file_name,uint32_t fsize)
+{
+	XB_API_FRAME_t tx,rx;
+	uint32_t i;
+	
+	for(i=0;i<3;i++)	xb_get_frame(&rx,XB_RX_NO_BLOCK);
+	
+	sprintf(fstr,"%s/%s",dir_str,file_name);
+	
+	dbg_out("Sending File: ");
+	dbg_out(fstr);
+	dbg_out("\n");
+	
+	tx.valid = 0x7E;
+	tx.id = 0x10;
+	tx.data[0] = 0x01;
+	
+	for(i = 1;i<13;i++)
+	{
+		tx.data[i]=0;
+	}
+	
+	tx.data[13] = CMD_START_TFR;
+	tx.data[14] = (fsize >> 24) & 0x000000FF;
+	tx.data[15] = (fsize >> 16) & 0x000000FF;
+	tx.data[16] = (fsize >> 8) & 0x000000FF;
+	tx.data[17] = (fsize) & 0x000000FF;
+	sprintf(str1,"Number of Bytes: %lu\n",fsize);
+	dbg_out(str1);
+	tx.data[18] = RF_PACKET_SIZE;
+	tx.data[19] = CHUNK_SIZE;
+	tx.data[20] = strlen(fstr);
+	
+	for(i = 21;i<strlen(fstr)+21;i++)
+	{
+		tx.data[i] = fstr[i-21];
+	}
+	tx.len = 22 + strlen(fstr);
+	
+	xb_send_frame(&tx);
+	
+	// Wait for Ack
+	if(!xb_get_frame(&rx,2000))
+	{
+		dbg_out("Start Transfer Ack Timeout\n");
+		return false;
+	}
+
+	if((rx.valid == 0x7E) && (rx.id == 0x8B) && (rx.data[0]==0x01) && (rx.data[4]==0))
+	{
+		//dbg_out("Start Transfer Ack Received\n");
+	}
+	else
+	{
+		dbg_out("Start Transfer Ack Failure\n");
+		return false;
+	}
+	
+	// Wait for Ack
+	if(!xb_get_frame(&rx,5000))
+	{
+		dbg_out("Start Transfer Response Failed\n");
+		return false;
+	}
+	
+	if((rx.valid == 0x7E) && (rx.id == 0x90) && (rx.data[11] = 0x18) && (rx.data[12] == 1))
+	{
+		//dbg_out("Start Response Received\n");
+		return true;
+	}
+	else
+	{
+		dbg_out("Start Response Failure\n");
+		return false;
+	}
+}
+
+uint8_t SendDataPacket(uint8_t *b,uint8_t pnum,uint8_t psize)
+{
+	XB_API_FRAME_t tx,rx;
+	
+	uint8_t i;
+	
+	// Delimiter
+	tx.valid = 0x7E;
+	// Api Command ID
+	tx.id = 0x10;
+	// Frame ID
+	tx.data[0] = 0x01;
+	
+	// Send to Coordinator, no options on
+	for(i = 1;i<13;i++)
+	{
+		tx.data[i]=0;
+	}
+
+	tx.data[13] = CMD_DATA_PKT;
+	tx.data[14] = pnum;
+	
+	//sprintf(str3,"PKT[%02u] ",pnum);dbg_out(str3);
+	
+	for(i = 0;i<(psize);i++) 
+	{
+		tx.data[i+15] = b[i];
+		
+		//sprintf(str3,"%02x ",b[i]);dbg_out(str3);
+	}
+	//dbg_out("\n");
+	
+	tx.len = 16+psize;
+	
+//	dbg_out("Sending Frame\n");
+	xb_send_frame(&tx);
+//	dbg_out("Waiting for Ack\n");
+	if(!xb_get_frame(&rx,XB_RX_BLOCK)) 
+	{
+		dbg_out("No Ack Received\n");
+		return false;
+	}		
+	
+	if(rx.id != 0x8B) // Look for Ack Response Frame
+	{
+		dbg_out("Incorrect Ack Frame\n");
+		//TODO: Need to find a way to handle this
+		return false;
+	}
+	
+	if(rx.data[4]!=0)
+	{
+		dbg_out("Ack Failure\n");
+		return false;
+	}
+	
+	//dbg_out("Ack Received\n");
+	
+	//delay_ms(10);
+	
+	return true;
+}
+
+uint8_t EndTransfer(uint8_t rsn,uint8_t fl_chksum)
+{
+	XB_API_FRAME_t tx,rx;
+
+	uint8_t i;
+
+	// Delimiter
+	tx.valid = 0x7E;
+	// Api Command ID
+	tx.id = 0x10;
+	// Frame ID
+	tx.data[0] = 0x01;
+
+	// Send to Coordinator, no options on
+	for(i = 1;i<13;i++)
+	{
+		tx.data[i]=0;
+	}
+
+	tx.data[13] = CMD_END_TFR;
+	tx.data[14] = rsn;
+	tx.data[15] = fl_chksum;
+	tx.len = 17;
+	
+	xb_send_frame(&tx);
+	
+	if(!xb_get_frame(&rx,2000))
+	{
+		dbg_out("End Tfr Ack Timeout\n");
+		return false;
+	}
+	
+	if(rx.id != 0x8B) // Look for Ack Response Frame
+	{
+		dbg_out("End Tfr Failure: Wrong XB Frame Received\n");
+		//TODO: Need to find a way to handle this
+		return false;
+	}
+	
+	if(rx.data[4]!=0)
+	{
+		dbg_out("End Tfr Failure: No Ack Recieved\n");
+		return false;
+	}
+	
+	if(!xb_get_frame(&rx,5000))
+	{
+		dbg_out("End Tranfser Response Timeout\n");
+		return false;
+	}
+	
+	if(rx.data[11] != CMD_END_TFR_RESP)
+	{
+		sprintf(str1,"Wrong Response Sent: 0x%02X\n",rx.data[13]);dbg_out(str1);
+		dbg_out(str1);
+		return false;
+	}
+	
+	if(rx.data[12]==0)
+	{
+		dbg_out("File Transfer Failed\n");
+		
+		return false;
+	}
+	else if(rx.data[12]==3)
+	{
+		dbg_out("File Transfer Checksum Failure\n");
+		return false;
+	}
+	else if(rx.data[12]==2)
+	{
+		dbg_out("File Transfer Canceled\n");
+		return true;
+	}
+	else if(rx.data[12]==1)
+	{
+		dbg_out("File Transfer Finished\n");
+		return true;
+	}
+	else
+	{
+		dbg_out("Unknown Response\n");
+		return false;
+	}
+	return false;
+}
+
+uint8_t CancelTransfer(void)
+{
+	dbg_out("Canceling Transfer...\n");
+	return(EndTransfer(2,0));
+}
+
+void print_frame(XB_API_FRAME_t *frm)
+{
+	uint8_t i;
+	char c = 0;
+	char str[100] ="";
+	dbg_out("\n\nFrame Received:\n-------------\n");
+	sprintf(str,"DL: 0x%02X\n",frm->valid); dbg_out(str);
+	sprintf(str,"LN: 0x%04X\n",frm->len); dbg_out(str);
+	sprintf(str,"ID: 0x%02X\n",frm->id); dbg_out(str);
+	for(i = 0; i<frm->len-1;i++)
+	{
+		if(isalnum(frm->data[i])) 
+		{
+			c = frm->data[i];
+		}					
+		else
+		{
+			c = ' ';
+		}
+		sprintf(str,"%02u: %c[%02X]\n",i+1,c,frm->data[i]);
+		dbg_out(str);
+	}
+	sprintf(str,"CS: %02X\n\n----------------------------",frm->chk_sum);
+	dbg_out(str);
+}
