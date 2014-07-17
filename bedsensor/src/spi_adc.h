@@ -10,6 +10,7 @@
 #define SPI_ADC_H_
 
 #include "compiler.h"
+#include <spi.h>
 
 
 uint16_t adc_sample(uint16_t chan);

@@ -1,11 +1,3 @@
-/*	Dependency Information
-
-	asf.h
-	compiler.h
-
-*/
-
-
 /*
  * led.h
  *
@@ -19,12 +11,27 @@
 
 #include <asf.h>
 #include <compiler.h>
+#include <gpio.h>
+#include <cycle_counter.h>
+#include <user_board.h>
 
 #define NUM_LEDS 3
 
-#define LED_OFF 	0
-#define LED_ON		1
-#define LED_BLINK 	2
+volatile struct
+{
+	uint32_t pin;
+	uint8_t tmr_mode;
+	t_cpu_time on_tmr;
+	uint8_t blink_mode;
+	uint16_t blink_period;
+	t_cpu_time blink_tmr;
+}led[NUM_LEDS];
+
+
+
+#define LED_OFF 0
+#define LED_ON	1
+#define LED_BLINK 2
 
 #define LED_STAY_ON 0
 #define LED_TIMED	1

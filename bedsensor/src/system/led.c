@@ -6,17 +6,8 @@
  */ 
 
 #include "led.h"
-
-
-volatile struct
-{
-	uint32_t pin;
-	uint8_t tmr_mode;
-	t_cpu_time on_tmr;
-	uint8_t blink_mode;
-	uint16_t blink_period;
-	t_cpu_time blink_tmr;
-}led[NUM_LEDS];
+#include <gpio.h>
+#include <sysclk.h>
 
 void ChangeBlink(uint8_t idx,uint16_t per)
 {
@@ -41,22 +32,20 @@ void LedCtrl(uint8_t idx,uint8_t tmr_mode, uint16_t tmr_msec,uint8_t blink_mode,
 	{
 		if((led[idx].blink_mode != blink_mode) || (led[idx].tmr_mode != tmr_mode) || (led[idx].blink_period != blink_msec))
 		{
-		
 			cpu_irq_disable();
 			
 			led[idx].blink_mode = blink_mode;
 			led[idx].tmr_mode = tmr_mode;
 			led[idx].blink_period = blink_msec;
 			
-			
 			if(tmr_mode == LED_TIMED)
 			{
-				cpu_set_timeout(cpu_ms_2_cy(tmr_msec,F_CPU),&(led[idx].on_tmr));
+				cpu_set_timeout(cpu_ms_2_cy(tmr_msec,sysclk_get_cpu_hz()),&(led[idx].on_tmr));
 			}
 			
 			if(blink_mode == LED_BLINK)
 			{
-				cpu_set_timeout(cpu_ms_2_cy(blink_msec,F_CPU),&(led[idx].blink_tmr));
+				cpu_set_timeout(cpu_ms_2_cy(blink_msec,sysclk_get_cpu_hz()),&(led[idx].blink_tmr));
 			}
 			
 			if(blink_mode != LED_OFF)	gpio_set_pin_high(led[idx].pin);
@@ -99,7 +88,7 @@ void HandleLeds(void)
 			{
 				gpio_tgl_gpio_pin(led[i].pin);
 				
-				cpu_set_timeout(cpu_ms_2_cy(led[i].blink_period,F_CPU),&(led[i].blink_tmr));
+				cpu_set_timeout(cpu_ms_2_cy(led[i].blink_period,sysclk_get_cpu_hz()),&(led[i].blink_tmr));
 			}
 			continue;
 		}

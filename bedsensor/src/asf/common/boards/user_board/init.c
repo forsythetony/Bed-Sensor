@@ -8,11 +8,9 @@
 #include <board.h>
 #include <asf.h>
 #include <conf_board.h>
-#include <conf_sd_mmc_spi.h>
 #include <conf_usart_serial.h>
 #include <conf_clock.h>
 #include <stdio.h>
-#include <calendar.h>
 #include <compiler.h>
 #include <string.h>
 #if defined (__GNUC__)
@@ -20,12 +18,9 @@
 #endif
 #include "system/buttons.h"
 #include "system/led.h"
-#include "system/rtc.h"
 #include "main.h"
 #include "system/wireless/xbee-api.h"
-
-#include <calendar.h>
-
+#include <tc.h>
 
 uint8_t curr_data = 0;
 uint16_t data_idx = 0;
@@ -34,8 +29,7 @@ volatile uint16_t data_rdy = 0;
 unsigned long glb_time_msec = 0;
 unsigned long glb_time_sec = 0;
 volatile uint8_t time_valid = 0;
-volatile rtc_t sys_time;
-//volatile rtc_t boot_time;
+
 volatile uint16_t test_val = 0;
 volatile uint32_t val_avg = 0;
 volatile uint32_t val_avg_hold = 0;
@@ -55,10 +49,12 @@ volatile uint8_t b_sec=0;
 volatile uint16_t b_msec=0;
 volatile uint8_t timestamp_valid = 0;
 volatile uint8_t temp_block = 0;
+volatile uint8_t send_ping_ack = 0;
 volatile uint32_t ping_timeout = 0;
+
+volatile uint8_t sample_enable = 0;
 #define PING_TIMEOUT 15000
-
-
+// PING_TIMEOUT example) 15000 * 10 / 1000 = 150 seconds for before timeout 
 
 /**
  * \brief TC interrupt.
@@ -79,7 +75,6 @@ bool resetNotificationSent = false;
 volatile char out_str[MAX_SAMPLE_CHUNK_SIZE];
 volatile bool startSample = true;
 
-
 typedef struct
 {
 	char buffer[MAX_QUEUE_SIZE][MAX_SAMPLE_CHUNK_SIZE];
@@ -89,10 +84,8 @@ typedef struct
 
 volatile XB_DATA_BFR_t dataToSend;
 
-
 __attribute__((__interrupt__)) static void tc_irq(void)
 {
-	uint8_t i = 0;
 	
 	bool sendSample = false;
 	
@@ -133,9 +126,9 @@ __attribute__((__interrupt__)) static void tc_irq(void)
 	
 	if(!wifi_empty()) return;
 	
-	if(sys.log.smpl_enable == 1 && temp_block != 1) {
+	if(sample_enable == 1 && temp_block != 1) {
 		if (startSample == true) {
-			memset(out_str, 0, sizeof(out_str));	
+			memset((char *)out_str, 0, sizeof(out_str));	
 		}
 		startSample = false;
 
@@ -147,29 +140,20 @@ __attribute__((__interrupt__)) static void tc_irq(void)
 		data_sample[5]= (adc_sample(ADC_CH5)>>1);
 		data_sample[6]= (adc_sample(ADC_CH6)>>1);
 		data_sample[7]= (adc_sample(ADC_CH7)>>1);
-
-//		sprintf(&out_str[strlen(out_str)],"<S:%02u-%02u-%02u_%02u:%02u:%02u.%03u,%u,%u,%u,%u,%u,%u,%u,%u#\n\r",
 	
-		sprintf(&out_str[strlen(out_str)],"<S:%02u-%02u-%02u_%02u:%02u:%02u.%03u,%u,%u,%u,%u,%u,%u,%u,%u#",
+		sprintf((char *)&out_str[strlen((const char*)out_str)],"<S:%02u-%02u-%02u_%02u:%02u:%02u.%03u,%u,%u,%u,%u,%u,%u,%u,%lu#",
 								b_month,b_day,b_year,b_hour,b_min,b_sec,b_msec,
 								data_sample[R1],data_sample[R2],data_sample[R3],data_sample[R4],
-								data_sample[F1],data_sample[F2],PING_TIMEOUT,ping_timeout);		
+								data_sample[F1],data_sample[F2],data_sample[F3],ping_timeout);	
 	}
 	
-	if(sys.log.smpl_enable == 1 && temp_block != 1 && sendSample)
+	if(sample_enable == 1 && temp_block != 1 && sendSample)
 	{
-		//LedPulse(0);	
-
-		strcpy(dataToSend.buffer[dataToSend.tail], out_str);
+		strcpy((char *)dataToSend.buffer[dataToSend.tail], (const char *)out_str);
 		dataToSend.tail++;
         if (dataToSend.tail >= MAX_QUEUE_SIZE) {
 	        dataToSend.tail = 0;
         }	
-//        if (tail == head-1) {
-//            LOG.debug("Queue full!!");
-//        }
-			
-		//usart_write_line(&XB_USART,out_str);
 		startSample = true;
 	}	
 	
@@ -195,21 +179,13 @@ void send_data() {
 	char sendString[20][MAX_SAMPLE_CHUNK_SIZE];
 	volatile int sendIdx = 0;
 	
-	/* commented out 6/18/2014 - DV
-	if(!xb_clr2send())
-	{
-		LedBlink(0,50);
-		//LedBlink(1,50);
-		//LedBlink(2,50);
-		delay_s(1);
-		SoftwareReset();
-	}
-	*/
+
+	//if(!xb_clr2send())
 	
-	//XB_DATA_BFR_t dataToSendCopy = dataToSend;
 	cpu_irq_disable();
+	
 	while (dataToSend.head != dataToSend.tail) {
-		strcpy(sendString[sendIdx], dataToSend.buffer[dataToSend.head]);
+		strcpy(sendString[sendIdx], (const char*)dataToSend.buffer[dataToSend.head]);
 		dataToSend.head++;
 		if (dataToSend.head >= MAX_QUEUE_SIZE) {
 			dataToSend.head = 0;
@@ -217,6 +193,12 @@ void send_data() {
 		sendIdx++;
 	}
 	cpu_irq_enable();
+	
+	if (send_ping_ack == 1) {
+		strcpy(sendString[sendIdx], "<PA");
+		sendIdx++;
+		send_ping_ack = 0;	
+	}
 
 	for (int idx=0; idx<sendIdx; idx++) {
 		sprintf(targetString, "%s\n\r", sendString[idx]);
@@ -373,34 +355,6 @@ void board_init(void)
 	spi_enable(ADC_SPI);
 	spi_setupChipReg(ADC_SPI,&adc_spi_opts,sysclk_get_pba_hz());
 	spi_setupChipReg(ADC_SPI,&fake_spi_opts,sysclk_get_pba_hz());
-	
-	spi_options_t sd_mmc_spiOpts =
-	{
-		.reg = 0,
-		.baudrate = SD_MMC_SPI_MASTER_SPEED,
-		.bits = SD_MMC_SPI_BITS,
-		.spck_delay = 0,
-		.trans_delay = 0,
-		.stay_act = 1,
-		.spi_mode = 0,
-		.modfdis = 1
-	};
-	
-	sysclk_enable_peripheral_clock(SD_MMC_SPI);
-	
-	gpio_map_t SD_MMC_SPI_GPIO_MAP ={
-	{SD_MMC_MOSI_PIN,SD_MMC_MOSI_FUNCTION},
-	{SD_MMC_MISO_PIN,SD_MMC_MISO_FUNCTION},
-	{SD_MMC_SCK_PIN,SD_MMC_SCK_FUNCTION},
-	{SD_MMC_CS_PIN,SD_MMC_CS_FUNCTION}};
-		
-	//gpio_enable_module(SD_MMC_SPI_GPIO_MAP,
-	//sizeof(SD_MMC_SPI_GPIO_MAP) / sizeof(SD_MMC_SPI_GPIO_MAP[0]));
-	
-	//spi_initMaster(SD_MMC_SPI,&sd_mmc_spiOpts);
-	//spi_enable(SD_MMC_SPI);
-	//sd_mmc_spi_init(sd_mmc_spiOpts,sysclk_get_pba_hz());
-
 
 	// Initialize the timer module
 	volatile avr32_tc_t *tc = EXAMPLE_TC;
@@ -417,18 +371,8 @@ void board_init(void)
 	/************************************************************************/
 	/*                        TWI Initialization                            */
 	/************************************************************************/
-	
-	gpio_map_t RTC_TWI_GPIO_MAP ={
-		{RTC_TWI_SCL_PIN,RTC_TWI_SCL_FUNCTION},
-		{RTC_TWI_SDA_PIN,RTC_TWI_SDA_FUNCTION}};
 			
-	//gpio_enable_module(RTC_TWI_GPIO_MAP,
-	//sizeof(RTC_TWI_GPIO_MAP) / sizeof(RTC_TWI_GPIO_MAP[0]));	
+
 	
-	//sysclk_enable_peripheral_clock(RTC_TWI);
-	
-	// Clear System Structure;
-	memset((uint8_t*)(&sys),0,sizeof(sys));
-	
-	memset(&dataToSend, 0, sizeof(dataToSend));
+	memset((char *)&dataToSend, 0, sizeof(dataToSend));
 }

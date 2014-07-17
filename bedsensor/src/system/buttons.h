@@ -1,10 +1,3 @@
-/*	Dependency Information
-
-	compiler.h
-	asf.h
-
-*/
-
 /*
  * buttons.h
  *
@@ -18,6 +11,7 @@
 
 #include <compiler.h>
 #include <asf.h>
+#include <gpio.h>
 
 
 
