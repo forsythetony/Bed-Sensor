@@ -240,3 +240,7 @@ pip-log.txt
 *.hex
 
 *.cproj
+
+# Personal things
+
+!*.sh
